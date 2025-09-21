@@ -1,0 +1,50 @@
+@startuml
+title Жизненный цикл запуска FirstRestApp (Spring Boot)
+
+actor "JVM" as JVM #LightBlue
+participant "SpringApplication\n(точка входа)" as SA #LightGray
+participant "ApplicationContext\n(IOC контейнер)" as AC #LightGray
+participant "DispatcherServlet\n(Spring MVC фронт-контроллер)" as DS #LightGray
+participant "PeopleController\n(мой контроллер)" as PC #LightGreen
+participant "PeopleService\n(бизнес-логика)" as PS #LightGreen
+participant "PeopleRepository\n(Spring Data JPA proxy)" as PR #LightGreen
+participant "EntityManagerFactory\n(Hibernate)" as EMF #LightGray
+database "PostgreSQL" as DB #LightYellow
+
+== Запуск ==
+JVM -> SA : вызов main()\nSpringApplication.run()
+SA -> AC : создание ApplicationContext
+AC -> AC : сканирование компонентов\n(@Controller, @Service, @Repository, @Entity)
+
+== Регистрация бинов ==
+AC -> DS : создание DispatcherServlet
+AC -> PC : создание PeopleController
+AC -> PS : создание PeopleService
+AC -> PR : создание PeopleRepository (Spring Data proxy)
+AC -> EMF : настройка JPA EntityManagerFactory\n(через Hibernate)
+EMF -> DB : подключение к БД
+
+== Внедрение зависимостей ==
+AC -> PC : внедрение PeopleService + ModelMapper
+AC -> PS : внедрение PeopleRepository
+
+== Запуск веб-сервера ==
+SA -> AC : инициализация WebServer (Tomcat)
+AC -> DS : регистрация DispatcherServlet в контексте сервлета
+
+== Готовность ==
+note over SA, DS
+Приложение поднято на http://localhost:8080\n
+DispatcherServlet готов маршрутизировать запросы.
+end note
+
+== Легенда ==
+legend left
+|= Цвет |= Значение |
+|<#LightGreen>| Мои классы (Controller, Service, Repository, Entity) |
+|<#LightGray>| Spring инфраструктура |
+|<#LightBlue>| Внешний слой (JVM) |
+|<#LightYellow>| База данных |
+Пунктир = возврат значения
+endlegend
+@enduml
