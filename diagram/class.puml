@@ -1,0 +1,180 @@
+@startuml
+title Архитектура приложения FirstRestApp (Spring + собственные классы)
+
+skinparam class {
+  BackgroundColor White
+  ArrowColor Black
+  BorderColor Black
+}
+
+' === UI Layer ===
+package UI {
+  class DispatcherServlet #LightGreen {
+    +doDispatch()
+    "Фронт-контроллер Spring MVC, направляет запросы в контроллеры"
+  }
+}
+
+' === Controllers Layer ===
+package Controllers {
+  class PeopleController #LightBlue {
+    - PeopleService peopleService
+    + getPeople() : List<Person>
+    + getPerson(id:int) : Person
+    + create(person:Person, bindingResult:BindingResult) : ResponseEntity<HttpStatus>
+    + handleException(e:PersonNotFoundException) : ResponseEntity<PersonErrorResponse>
+    + handleException(e:PersonNotCreatedException) : ResponseEntity<PersonErrorResponse>
+    "REST-контроллер для работы с Person"
+  }
+}
+
+' === Services Layer ===
+package Services {
+  class PeopleService #LightBlue {
+    - PeopleRepository peopleRepository
+    + findAll() : List<Person>
+    + findOne(id:int) : Person
+    + save(person:Person) : void
+    "Сервисный слой, инкапсулирует бизнес-логику"
+  }
+}
+
+' === Repositories Layer ===
+package Repositories {
+  interface PeopleRepository #LightBlue {
+    "Spring Data репозиторий для Person"
+  }
+}
+
+' === Database Layer ===
+package Database {
+  class Person #LightBlue {
+    - id:int
+    - name:String
+    - age:int
+    - email:String
+    + getId()
+    + setId(int)
+    + getName()
+    + setName(String)
+    + getAge()
+    + setAge(int)
+    + getEmail()
+    + setEmail(String)
+    "JPA-сущность Person"
+  }
+}
+
+' === Util Layer ===
+package Util {
+  class PersonErrorResponse #LightBlue {
+    - message:String
+    - timestamp:long
+    + getMessage()
+    + setMessage(String)
+    + getTimestamp()
+    + setTimestamp(long)
+    + setTimestamp(long)
+    "Ответ с ошибкой для REST"
+  }
+
+  class PersonNotFoundException #LightBlue {
+    "Ошибка: Person не найден"
+  }
+
+  class PersonNotCreatedException #LightBlue {
+    "Ошибка: Person не создан (валидация)"
+  }
+}
+
+' === Spring Infrastructure Layer ===
+package SpringInfrastructure {
+  interface JpaRepository #LightGreen {
+    + findAll()
+    + findById(ID)
+    + save(Entity)
+    "Базовый интерфейс Spring Data JPA"
+  }
+
+  class ApplicationContext #LightGreen {
+    "Контейнер Spring, управляет бинами"
+  }
+
+  class BindingResult #LightGreen {
+    "Результат валидации, содержит FieldErrors"
+  }
+
+  class FieldError #LightGreen {
+    "Информация об ошибке валидации"
+  }
+
+  class ResponseEntity #LightGreen {
+    "HTTP-ответ с телом и статусом"
+  }
+
+  class HttpStatus #LightGreen {
+    "HTTP статус код (200, 404, 400)"
+  }
+}
+
+' === External APIs Layer ===
+package ExternalAPIs {
+  class Jackson #LightGreen {
+    "Библиотека сериализации JSON"
+  }
+}
+
+' === Relations ===
+DispatcherServlet o-- PeopleController
+PeopleController o-- PeopleService
+PeopleService o-- PeopleRepository
+PeopleRepository ..|> JpaRepository
+PeopleRepository *-- Person
+
+PeopleController ..> ResponseEntity
+PeopleController ..> HttpStatus
+PeopleController ..> BindingResult
+BindingResult o-- FieldError
+PeopleController ..> PersonNotFoundException
+PeopleController ..> PersonNotCreatedException
+PeopleController ..> PersonErrorResponse
+PeopleController ..> Jackson : "calls"
+
+PeopleService ..> Person
+PeopleService ..> PersonNotFoundException
+
+ApplicationContext o-- PeopleController
+ApplicationContext o-- PeopleService
+ApplicationContext o-- PeopleRepository
+
+' === Notes ===
+note right of DispatcherServlet
+  Основной вход в Spring MVC.
+  Получает HTTP-запрос и
+  вызывает соответствующий контроллер.
+end note
+
+note top of ApplicationContext
+  ApplicationContext управляет
+  жизненным циклом бинов,
+  внедряет зависимости.
+end note
+
+note right of JpaRepository
+  Spring автоматически генерирует
+  реализацию методов доступа к БД.
+end note
+
+' === Legend ===
+legend left
+  <#LightBlue>|Мои классы (FirstRestApp)|
+  <#LightGreen>|Spring классы |
+
+  --|>   Наследование
+  ..|>   Реализация интерфейса
+  o--    Агрегация
+  *--    Композиция
+  ..>    Зависимость (слабая связь)
+  ..> "calls"   Вызов внешнего API
+endlegend
+@enduml

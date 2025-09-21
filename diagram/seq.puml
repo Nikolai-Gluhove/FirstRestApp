@@ -1,0 +1,63 @@
+@startuml
+title Последовательность обработки POST /people в Spring Boot приложении
+
+' Уровни
+actor Browser as B <<UI>> #LightBlue
+participant "DispatcherServlet\n(Spring MVC фронт-контроллер)" as DS <<Spring>> #LightGray
+participant "RequestMappingHandlerMapping\n(определяет контроллер)" as RM <<Spring>> #LightGray
+participant "PeopleController\n(мой контроллер)" as PC <<MyCode>> #LightGreen
+participant "PeopleService\n(бизнес-логика)" as PS <<MyCode>> #LightGreen
+participant "PeopleRepository\n(JPA репозиторий)" as PR <<MyCode>> #LightGreen
+participant "EntityManager\n(JPA API)" as EM <<Spring>> #LightGray
+database "Database\n(PostgreSQL/MySQL)" as DB <<DB>> #LightYellow
+participant "Jackson\n(JSON сериализация)" as J <<Spring>> #LightGray
+participant "Validator\n(Hibernate Validator)" as V <<Spring>> #LightGray
+participant "TransactionManager\n(Spring Data JPA)" as TM <<Spring>> #LightGray
+
+== UI Layer ==
+B -> DS : HTTP POST /people\nJSON {name, age, email}
+
+== DispatcherServlet + Mapping ==
+DS -> RM : Определение контроллера по URL
+RM --> DS : PeopleController.create()
+
+== Controller ==
+DS -> PC : Вызов create(@RequestBody Person, BindingResult)
+PC -> V : Валидация Person (Bean Validation)
+V --> PC : BindingResult (ok)
+
+alt Если ошибки валидации
+    PC -> PC : throw PersonNotCreatedException
+    PC -> DS : Exception
+    DS -> PC : Вызов @ExceptionHandler(PersonNotCreatedException)
+    PC -> PC : Создание PersonErrorResponse
+    PC --> DS : ResponseEntity<PersonErrorResponse>
+    DS -> J : Сериализация PersonErrorResponse -> JSON
+    J --> DS
+    DS --> B : HTTP 400 BAD_REQUEST + JSON
+else Валидный JSON
+    PC -> PS : save(Person)
+    PS -> TM : Начало транзакции
+    PS -> PR : save(Person)
+    PR -> EM : persist(Person)
+    EM -> DB : INSERT INTO person ...
+    DB --> EM : OK
+    EM --> PR
+    PR --> PS
+    PS -> TM : Commit транзакции
+    PS --> PC
+    PC --> DS : ResponseEntity<HttpStatus.OK>
+    DS --> B : HTTP 200 OK (пустое тело)
+end
+
+== Легенда ==
+legend left
+|= Color |= Meaning |
+|<#LightGreen>| Мои классы (Controller, Service, Repository, Entity)|
+|<#LightGray> | Spring инфраструктура (MVC, JPA, Jackson, Validator)|
+|<#LightBlue>| Клиент (UI / внешний API)|
+|<#LightYellow>| База данных|
+Пунктир = возврат значения/ответ
+endlegend
+
+@enduml
