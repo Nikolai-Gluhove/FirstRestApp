@@ -1,0 +1,65 @@
+@startuml
+title Последовательность обработки POST /people (с DTO) в FirstRestApp
+
+' === Участники ===
+actor Browser as B <<UI>> #LightBlue
+participant "DispatcherServlet\n(фронт-контроллер)" as DS <<Spring>> #LightGray
+participant "RequestMappingHandlerMapping\n(поиск контроллера)" as RM <<Spring>> #LightGray
+participant "PeopleController\n(мой REST-контроллер)" as PC <<MyCode>> #LightGreen
+participant "Validator\n(Hibernate Validator)" as V <<Spring>> #LightGray
+participant "Jackson\n(JSON сериализация/десериализация)" as J <<Spring>> #LightGray
+participant "PeopleService\n(бизнес-логика)" as PS <<MyCode>> #LightGreen
+participant "PeopleRepository\n(JPA репозиторий)" as PR <<MyCode>> #LightGreen
+participant "TransactionManager\n(JPA транзакции)" as TM <<Spring>> #LightGray
+participant "EntityManager\n(JPA API)" as EM <<Spring>> #LightGray
+database "PostgreSQL\n(база данных)" as DB <<DB>> #LightYellow
+
+' === Запрос ===
+B -> DS : HTTP POST /people\nJSON {name, age, email}
+
+DS -> RM : Определение обработчика
+RM --> DS : PeopleController.create()
+
+' === Десериализация + Валидация ===
+DS -> J : JSON -> PersonDTO
+J --> DS : PersonDTO
+DS -> V : Валидация PersonDTO (@Valid)
+V --> DS : BindingResult
+
+alt Ошибки валидации
+  DS -> PC : Вызов create(..., BindingResult с ошибками)
+  PC -> PC : throw PersonNotCreatedException
+  DS -> PC : @ExceptionHandler(PersonNotCreatedException)
+  PC -> PC : new PersonErrorResponse(msg, timestamp)
+  PC --> DS : ResponseEntity<PersonErrorResponse>
+  DS -> J : Сериализация -> JSON
+  J --> DS
+  DS --> B : HTTP 400 BAD_REQUEST + JSON
+else DTO валиден
+  DS -> PC : Вызов create(PersonDTO, BindingResult ok)
+  PC -> PS : save(Person)\n(через ModelMapper DTO->Entity)
+
+  PS -> TM : Начало транзакции
+  PS -> PR : save(Person)
+  PR -> EM : persist(Person)
+  EM -> DB : INSERT INTO person ...
+  DB --> EM : OK
+  EM --> PR
+  PR --> PS
+  PS -> TM : Commit транзакции
+
+  PS --> PC
+  PC --> DS : ResponseEntity<HttpStatus.OK>
+  DS --> B : HTTP 200 OK (пустое тело)
+end
+
+' === Легенда ===
+legend left
+|= Цвет |= Слой |
+|<#LightBlue>| UI (браузер / клиент)|
+|<#LightGreen>| Мой код (Controller, Service, Repository, Entity, DTO)|
+|<#LightGray>| Spring инфраструктура (MVC, JPA, Validator, Jackson)|
+|<#LightYellow>| База данных|
+Пунктир = возврат значения / ответа
+endlegend
+@enduml

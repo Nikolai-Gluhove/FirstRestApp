@@ -1,5 +1,5 @@
 @startuml
-title Архитектура приложения FirstRestApp (Spring + собственные классы)
+title Архитектура приложения **FirstRestApp** (Spring Boot + собственные классы)
 
 skinparam class {
   BackgroundColor White
@@ -17,14 +17,31 @@ package UI {
 
 ' === Controllers Layer ===
 package Controllers {
+  class FirstRestController #LightBlue {
+    + sayHello() : String
+    "Простейший REST контроллер: GET /api/sayHello"
+  }
+
   class PeopleController #LightBlue {
     - PeopleService peopleService
-    + getPeople() : List<Person>
-    + getPerson(id:int) : Person
-    + create(person:Person, bindingResult:BindingResult) : ResponseEntity<HttpStatus>
+    - ModelMapper modelMapper
+    + getPeople() : List<PersonDTO>
+    + getPerson(id:int) : PersonDTO
+    + create(personDTO:PersonDTO, bindingResult:BindingResult) : ResponseEntity<HttpStatus>
     + handleException(e:PersonNotFoundException) : ResponseEntity<PersonErrorResponse>
     + handleException(e:PersonNotCreatedException) : ResponseEntity<PersonErrorResponse>
     "REST-контроллер для работы с Person"
+  }
+}
+
+' === DTO Layer ===
+package DTO {
+  class PersonDTO #LightBlue {
+    - name:String
+    - age:int
+    - email:String
+    + getters/setters
+    "Data Transfer Object для Person"
   }
 }
 
@@ -53,14 +70,7 @@ package Database {
     - name:String
     - age:int
     - email:String
-    + getId()
-    + setId(int)
-    + getName()
-    + setName(String)
-    + getAge()
-    + setAge(int)
-    + getEmail()
-    + setEmail(String)
+    + getters/setters
     "JPA-сущность Person"
   }
 }
@@ -70,11 +80,7 @@ package Util {
   class PersonErrorResponse #LightBlue {
     - message:String
     - timestamp:long
-    + getMessage()
-    + setMessage(String)
-    + getTimestamp()
-    + setTimestamp(long)
-    + setTimestamp(long)
+    + getters/setters
     "Ответ с ошибкой для REST"
   }
 
@@ -84,6 +90,15 @@ package Util {
 
   class PersonNotCreatedException #LightBlue {
     "Ошибка: Person не создан (валидация)"
+  }
+}
+
+' === Configuration Layer ===
+package Configuration {
+  class FirstRestAppApplication #LightBlue {
+    + main(args:String[])
+    + modelMapper(): ModelMapper
+    "Главный класс приложения Spring Boot"
   }
 }
 
@@ -115,6 +130,10 @@ package SpringInfrastructure {
   class HttpStatus #LightGreen {
     "HTTP статус код (200, 404, 400)"
   }
+
+  class SecurityFilterChain #LightGreen {
+    "Конфигурация фильтров Spring Security"
+  }
 }
 
 ' === External APIs Layer ===
@@ -122,15 +141,18 @@ package ExternalAPIs {
   class Jackson #LightGreen {
     "Библиотека сериализации JSON"
   }
+
+  class ModelMapper #LightGreen {
+    "Библиотека для преобразования DTO <-> Entity"
+  }
 }
 
 ' === Relations ===
+DispatcherServlet o-- FirstRestController
 DispatcherServlet o-- PeopleController
-PeopleController o-- PeopleService
-PeopleService o-- PeopleRepository
-PeopleRepository ..|> JpaRepository
-PeopleRepository *-- Person
 
+PeopleController o-- PeopleService
+PeopleController ..> PersonDTO
 PeopleController ..> ResponseEntity
 PeopleController ..> HttpStatus
 PeopleController ..> BindingResult
@@ -139,13 +161,22 @@ PeopleController ..> PersonNotFoundException
 PeopleController ..> PersonNotCreatedException
 PeopleController ..> PersonErrorResponse
 PeopleController ..> Jackson : "calls"
+PeopleController ..> ModelMapper : "maps DTO->Entity"
 
+PeopleService o-- PeopleRepository
 PeopleService ..> Person
 PeopleService ..> PersonNotFoundException
+
+PeopleRepository ..|> JpaRepository
+PeopleRepository *-- Person
 
 ApplicationContext o-- PeopleController
 ApplicationContext o-- PeopleService
 ApplicationContext o-- PeopleRepository
+ApplicationContext o-- ModelMapper
+
+FirstRestAppApplication o-- ApplicationContext
+FirstRestAppApplication o-- ModelMapper
 
 ' === Notes ===
 note right of DispatcherServlet
@@ -165,16 +196,26 @@ note right of JpaRepository
   реализацию методов доступа к БД.
 end note
 
+note right of SecurityFilterChain
+  При добавлении Spring Security
+  управляет аутентификацией и авторизацией.
+end note
+
+note right of ModelMapper
+  Упрощает конвертацию DTO в Entity и обратно.
+end note
+
 ' === Legend ===
 legend left
   <#LightBlue>|Мои классы (FirstRestApp)|
-  <#LightGreen>|Spring классы |
+  <#LightGreen>|Spring/внешние классы |
 
   --|>   Наследование
   ..|>   Реализация интерфейса
-  o--    Агрегация
-  *--    Композиция
+  o--    Агрегация (has a)
+  *--    Композиция (сильная связь)
   ..>    Зависимость (слабая связь)
   ..> "calls"   Вызов внешнего API
 endlegend
+
 @enduml

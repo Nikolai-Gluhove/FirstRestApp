@@ -1,0 +1,61 @@
+@startuml
+title Последовательность обработки GET /people (с акцентом на DTO)
+
+' === Участники ===
+actor Client as C <<UI>> #LightBlue
+
+participant "DispatcherServlet\n(Spring MVC фронт-контроллер)" as DS <<Spring>> #LightGray
+participant "RequestMappingHandlerMapping\n(определяет контроллер)" as RM <<Spring>> #LightGray
+participant "PeopleController\n(мой контроллер)" as PC <<MyCode>> #LightGreen
+participant "PeopleService\n(бизнес-логика)" as PS <<MyCode>> #LightGreen
+participant "PeopleRepository\n(JPA репозиторий)" as PR <<MyCode>> #LightGreen
+participant "EntityManager\n(JPA API)" as EM <<Spring>> #LightGray
+database "Database\n(PostgreSQL)" as DB <<DB>> #LightYellow
+participant "ModelMapper\n(маппинг Entity -> DTO)" as MM <<SpringExt>> #LightGray
+participant "Jackson\n(JSON сериализация)" as J <<Spring>> #LightGray
+
+== UI Layer ==
+C -> DS : HTTP GET /people
+
+== DispatcherServlet + Mapping ==
+DS -> RM : Определение контроллера по URL
+RM --> DS : PeopleController.getPeople()
+
+== Controller ==
+DS -> PC : вызов getPeople()
+PC -> PS : findAll()
+
+== Service ==
+PS -> PR : findAll()
+PR -> EM : SELECT * FROM person
+EM -> DB : SQL: SELECT id, name, age, email FROM person
+DB --> EM : ResultSet
+EM --> PR : List<Person>
+PR --> PS : List<Person>
+PS --> PC : List<Person>
+
+== DTO Mapping ==
+PC -> MM : map(Person -> PersonDTO) * для каждого элемента
+MM --> PC : PersonDTO
+note right of PC
+  ModelMapper конвертирует сущности Person
+  в DTO PersonDTO (без лишних полей).
+end note
+PC --> DS : List<PersonDTO>
+
+== Serialization ==
+DS -> J : сериализация List<PersonDTO> -> JSON
+J --> DS : JSON
+DS --> C : HTTP 200 OK + JSON
+
+== Легенда ==
+legend left
+|= Color |= Meaning |
+|<#LightGreen>| Мои классы (Controller, Service, Repository, Entity, DTO)|
+|<#LightGray>| Spring инфраструктура (MVC, JPA, Jackson, ModelMapper)|
+|<#LightBlue>| Клиент (UI / внешний API)|
+|<#LightYellow>| База данных|
+Пунктир = возврат значения/ответ
+endlegend
+
+@enduml
